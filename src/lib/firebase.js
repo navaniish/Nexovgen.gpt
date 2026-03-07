@@ -15,13 +15,13 @@ import {
 import { getFirestore, collection, addDoc, getDocs, getDoc, query, where, doc, updateDoc, deleteDoc, setDoc } from "firebase/firestore";
 
 const firebaseConfig = {
-    apiKey: "AIzaSyAyXRBzVECR1tSDkdCl39zKY62QgSEo9qU",
-    authDomain: "nexovgen-ai.firebaseapp.com",
-    projectId: "nexovgen-ai",
-    storageBucket: "nexovgen-ai.firebasestorage.app",
-    messagingSenderId: "425711955850",
-    appId: "1:425711955850:web:89033deb46a0feac8fa273",
-    measurementId: "G-8ZH3G1PC15"
+    apiKey: "AIzaSyDuOWbcrhcXxu9BojEI06yFoo-Hd62igJo",
+    authDomain: "nexovgen-gpt-1b4f2.firebaseapp.com",
+    projectId: "nexovgen-gpt-1b4f2",
+    storageBucket: "nexovgen-gpt-1b4f2.firebasestorage.app",
+    messagingSenderId: "614043112687",
+    appId: "1:614043112687:web:fa42720f9fc8638f9e371a",
+    measurementId: "G-NL4SQF92PV"
 };
 
 // Only init once — prevents duplicate-app crash
