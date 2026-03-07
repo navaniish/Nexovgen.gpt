@@ -1,0 +1,8 @@
+torch>=2.1.0
+numpy
+sentencepiece
+transformers
+deepspeed>=0.12.0
+wandb
+tqdm
+flash-attn>=2.3.0
