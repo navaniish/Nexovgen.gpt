@@ -108,8 +108,9 @@ const Auth = ({ onAuth }) => {
                 if (onAuth) onAuth(result.user);
             }
         } catch (err) {
-            console.error(err);
-            setError(err.message.replace('Firebase: ', '').replace(/\(auth\/.*\)\.?/, ''));
+            console.error("Auth Error:", err);
+            const errorCode = err.code || 'unknown';
+            setError(`Authentication failed: ${errorCode}`);
         } finally {
             setLoading(false);
         }
