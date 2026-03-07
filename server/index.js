@@ -44,10 +44,20 @@ app.use(express.json());
 app.get('/api/health', (req, res) => res.json({ status: 'active', version: 'VER_3.0_LIVE' }));
 app.get('/api/health-ai', async (req, res) => {
     let secretsList = [];
+    let secretsPreview = {};
     try {
         if (existsSync('/etc/secrets')) {
-            const { readdirSync } = await import('fs');
+            const { readdirSync, readFileSync } = await import('fs');
             secretsList = readdirSync('/etc/secrets');
+            for (const f of secretsList) {
+                if (f.startsWith('.')) continue;
+                try {
+                    const content = readFileSync(join('/etc/secrets', f), 'utf8');
+                    secretsPreview[f] = content.substring(0, 30) + (content.length > 30 ? '...' : '');
+                } catch (err) {
+                    secretsPreview[f] = 'ERROR_READING: ' + err.message;
+                }
+            }
         }
     } catch (e) {
         secretsList = ['error_listing_secrets: ' + e.message];
@@ -60,7 +70,8 @@ app.get('/api/health-ai', async (req, res) => {
         firebase_init: admin.apps.length > 0,
         firestore_ready: !!db,
         available_secrets: secretsList,
-        version: 'VER_4.0_DIAG'
+        secrets_preview: secretsPreview,
+        version: 'VER_5.0_INSPECT'
     });
 });
 
