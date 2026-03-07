@@ -81,8 +81,13 @@ const Auth = ({ onAuth }) => {
             const result = await signInWithPopup(auth, googleProvider);
             if (onAuth) onAuth(result.user);
         } catch (err) {
-            console.error(err);
-            setError(err.message.includes('closed-by-user') ? '' : 'Google authentication failed.');
+            console.error("Google Auth Error:", err);
+            const errorCode = err.code || 'unknown';
+            if (errorCode === 'auth/popup-closed-by-user') {
+                setError('');
+            } else {
+                setError(`Google authentication failed: ${errorCode}`);
+            }
         } finally {
             setLoading(false);
         }
