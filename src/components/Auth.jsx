@@ -10,7 +10,8 @@ import {
     createUserWithEmailAndPassword,
     updateProfile,
     auth,
-    googleProvider
+    googleProvider,
+    signInAnonymously
 } from '../lib/firebase';
 import Logo from './Logo';
 import HexBackground from './HexBackground';
@@ -88,6 +89,20 @@ const Auth = ({ onAuth }) => {
             } else {
                 setError(`Google authentication failed: ${errorCode}`);
             }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleAnonymousLogin = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const result = await signInAnonymously(auth);
+            if (onAuth) onAuth(result.user);
+        } catch (err) {
+            console.error("Anonymous Auth Error:", err);
+            setError(`Nexus Guest access failed: ${err.code}`);
         } finally {
             setLoading(false);
         }
@@ -272,7 +287,7 @@ const Auth = ({ onAuth }) => {
                                     <Globe size={18} className="text-blue-400" />
                                     <span>Google Portal</span>
                                 </button>
-                                <button type="button" className="nxv-social-btn" disabled={loading}>
+                                <button onClick={handleAnonymousLogin} type="button" className="nxv-social-btn" disabled={loading}>
                                     <Fingerprint size={18} className="text-purple-400" />
                                     <span>Nexus Guest</span>
                                 </button>
