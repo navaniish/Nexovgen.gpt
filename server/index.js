@@ -81,32 +81,45 @@ app.use((req, res, next) => {
 
 // Load Firebase Service Account — env var takes priority (production), fallback to file (local dev)
 let serviceAccount = null;
-if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    try {
-        const rawContent = process.env.FIREBASE_SERVICE_ACCOUNT.trim();
-        // If it starts with '{', it's raw JSON. Otherwise, treat it as a FILE PATH.
-        if (rawContent.startsWith('{')) {
-            serviceAccount = JSON.parse(rawContent);
-            console.log('✅ Firebase service account loaded from raw JSON (env var)');
-        } else {
-            console.log(`📂 Attempting to load Firebase service account from file path: ${rawContent}`);
-            if (existsSync(rawContent)) {
-                serviceAccount = safeLoadJSON(rawContent);
-                console.log('✅ Firebase service account loaded from secret file');
-            } else {
-                console.error(`❌ Service account file not found at path: ${rawContent}`);
-            }
+
+const tryLoadServiceAccount = (path, sourceLabel) => {
+    if (path && existsSync(path)) {
+        console.log(`📂 Attempting to load Firebase service account from ${sourceLabel}: ${path}`);
+        const loaded = safeLoadJSON(path);
+        if (loaded) {
+            console.log(`✅ Firebase service account successfully loaded from: ${sourceLabel}`);
+            return loaded;
         }
-    } catch (err) {
-        console.error('❌ Failed to process FIREBASE_SERVICE_ACCOUNT env var:', err.message);
     }
-} else {
-    const serviceAccountPath = join(__dirname, 'config', 'serviceAccount.json');
-    if (existsSync(serviceAccountPath)) {
-        serviceAccount = safeLoadJSON(serviceAccountPath);
-        console.log('✅ Firebase service account loaded from local file');
+    return null;
+};
+
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    const rawContent = process.env.FIREBASE_SERVICE_ACCOUNT.trim();
+    if (rawContent.startsWith('{')) {
+        try {
+            serviceAccount = JSON.parse(rawContent);
+            console.log('✅ Firebase service account loaded from raw JSON string');
+        } catch (err) {
+            console.error('❌ Failed to parse FIREBASE_SERVICE_ACCOUNT JSON string:', err.message);
+        }
     } else {
-        console.warn('⚠️ No serviceAccount.json found and FIREBASE_SERVICE_ACCOUNT env var not set.');
+        // Treat as path
+        serviceAccount = tryLoadServiceAccount(rawContent, 'environment path');
+    }
+}
+
+// SMART AUTO-DETECTION (If still not loaded)
+if (!serviceAccount) {
+    const fallbackPaths = [
+        '/etc/secrets/FIREBASE_SERVICE_ACCOUNT',
+        '/etc/secrets/serviceAccount.json',
+        join(__dirname, 'config', 'serviceAccount.json')
+    ];
+
+    for (const path of fallbackPaths) {
+        serviceAccount = tryLoadServiceAccount(path, 'auto-detected path');
+        if (serviceAccount) break;
     }
 }
 
