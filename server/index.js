@@ -45,11 +45,12 @@ app.get('/api/health', (req, res) => res.json({ status: 'active', version: 'VER_
 app.get('/api/health-ai', async (req, res) => {
     res.json({
         openai: !!process.env.OPENAI_API_KEY,
-        firebase_sa: !!process.env.FIREBASE_SERVICE_ACCOUNT,
-        firebase_admin: admin.apps.length > 0,
-        firestore: !!db,
+        firebase_env: !!process.env.FIREBASE_SERVICE_ACCOUNT,
+        firebase_init: admin.apps.length > 0,
+        firestore_ready: !!db,
+        service_account_source: serviceAccount ? (process.env.FIREBASE_SERVICE_ACCOUNT?.startsWith('{') ? 'json' : 'file') : 'none',
         port: process.env.PORT || '5000',
-        node_env: process.env.NODE_ENV || 'development'
+        node_env: process.env.NODE_ENV || 'production'
     });
 });
 
@@ -142,8 +143,9 @@ const authenticate = async (req, res, next) => {
         } else {
             res.status(503).json({ error: 'Auth service unavailable' });
         }
-    } catch {
-        res.status(401).json({ error: 'Invalid token' });
+    } catch (err) {
+        console.error('❌ Auth Middleware Error:', err.message);
+        res.status(401).json({ error: 'Auth failed', details: err.message });
     }
 };
 
