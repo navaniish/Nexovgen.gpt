@@ -896,7 +896,12 @@ if (existsSync(indexPath)) {
     app.get('*', (req, res) => {
         // If API route not found, don't serve HTML
         if (req.path.startsWith('/api/')) {
-            return res.status(404).json({ error: 'API route not found' });
+            return res.status(404).json({
+                error: 'API route not found',
+                requested_path: req.path,
+                requested_url: req.url,
+                version: 'VER_3.5_CATCHALL'
+            });
         }
         res.sendFile(indexPath);
     });
