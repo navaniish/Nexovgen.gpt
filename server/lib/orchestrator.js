@@ -21,11 +21,11 @@ class AIOrchestrator {
         };
 
         this.routingRules = {
-            strategy: 'gateway',    // Use LLM Gateway as primary
-            technical: 'gateway',
-            research: 'gateway',
-            growth: 'gateway',
-            product: 'gateway',
+            strategy: process.env.LLM_GATEWAY_KEY ? 'gateway' : (process.env.GEMINI_API_KEY ? 'gemini' : 'openai'),
+            technical: process.env.LLM_GATEWAY_KEY ? 'gateway' : (process.env.GEMINI_API_KEY ? 'gemini' : 'openai'),
+            research: process.env.LLM_GATEWAY_KEY ? 'gateway' : (process.env.GEMINI_API_KEY ? 'gemini' : 'openai'),
+            growth: 'openai',
+            product: 'openai',
         };
     }
 
@@ -44,7 +44,15 @@ Agent IDs:
 
 Return ONLY a JSON object: { "agentId": "<agent_id>", "confidence": <0-1>, "isMultiStep": <bool> }`;
 
-            const raw = await this.executeGemini([{ role: 'user', content: message }], systemPrompt);
+            const preferredIntentProvider = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) ? 'gemini' : 'openai';
+            console.log(`[Orchestrator] Detecting intent using: ${preferredIntentProvider}`);
+
+            let raw;
+            if (preferredIntentProvider === 'gemini') {
+                raw = await this.executeGemini([{ role: 'user', content: message }], systemPrompt);
+            } else {
+                raw = await this.executeOpenAI([{ role: 'user', content: message }], systemPrompt);
+            }
             const data = JSON.parse(raw.replace(/```json?|```/g, '').trim());
             return data;
         } catch (err) {
