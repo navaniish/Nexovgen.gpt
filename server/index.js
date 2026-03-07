@@ -43,14 +43,24 @@ app.use(express.json());
 // ─── HEALTH & DIAGNOSTIC ENDPOINTS (TOP LEVEL) ────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ status: 'active', version: 'VER_3.0_LIVE' }));
 app.get('/api/health-ai', async (req, res) => {
+    let secretsList = [];
+    try {
+        if (existsSync('/etc/secrets')) {
+            const { readdirSync } = await import('fs');
+            secretsList = readdirSync('/etc/secrets');
+        }
+    } catch (e) {
+        secretsList = ['error_listing_secrets: ' + e.message];
+    }
+
     res.json({
         openai: !!process.env.OPENAI_API_KEY,
         firebase_env: !!process.env.FIREBASE_SERVICE_ACCOUNT,
+        firebase_path_value: process.env.FIREBASE_SERVICE_ACCOUNT,
         firebase_init: admin.apps.length > 0,
         firestore_ready: !!db,
-        service_account_source: serviceAccount ? (process.env.FIREBASE_SERVICE_ACCOUNT?.startsWith('{') ? 'json' : 'file') : 'none',
-        port: process.env.PORT || '5000',
-        node_env: process.env.NODE_ENV || 'production'
+        available_secrets: secretsList,
+        version: 'VER_4.0_DIAG'
     });
 });
 
