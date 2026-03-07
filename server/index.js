@@ -41,7 +41,7 @@ app.use(cors());
 app.use(express.json());
 
 // ─── HEALTH & DIAGNOSTIC ENDPOINTS (TOP LEVEL) ────────────────────────────────
-app.get('/api/health', (req, res) => res.json({ status: 'active', version: '2.5.0-diag' }));
+app.get('/api/health', (req, res) => res.json({ status: 'active', version: 'VER_3.0_LIVE' }));
 app.get('/api/health-ai', async (req, res) => {
     res.json({
         openai: !!process.env.OPENAI_API_KEY,
@@ -883,7 +883,7 @@ app.patch('/api/automation/review/:id', authenticate, async (req, res) => {
 
 // ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {
-    res.json({ status: 'NEXOVGEN Orchestration Layer Online', version: '2.2.0-orchestrated', providers: ['OpenAI', 'Anthropic', 'Google', 'DeepSeek'] });
+    res.json({ status: 'NEXOVGEN Orchestration Layer Online', version: 'VER_3.0_OLD_SITE', providers: ['OpenAI', 'Anthropic', 'Google', 'DeepSeek'] });
 });
 
 // ─── Production Serving / Dev Help ────────────────────────────────────────────
