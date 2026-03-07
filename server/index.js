@@ -121,6 +121,21 @@ const authenticate = async (req, res, next) => {
     }
 };
 
+// ─── HEALTH & DIAGNOSTIC ENDPOINTS ───────────────────────────────────────────
+app.get('/api/health', (req, res) => res.json({ status: 'active', timestamp: new Date() }));
+
+app.get('/api/health-ai', async (req, res) => {
+    const status = {
+        openai: !!process.env.OPENAI_API_KEY,
+        firebase_sa: !!process.env.FIREBASE_SERVICE_ACCOUNT,
+        firebase_admin: admin.apps.length > 0,
+        firestore: !!db,
+        env_port: process.env.PORT || 'not set',
+        node_env: process.env.NODE_ENV || 'development'
+    };
+    res.json(status);
+});
+
 // ─── Mentor Prompts (Server-side authoritative copy) ──────────────────────────
 const MENTOR_PROMPTS = {
     founder: `You are the AI Founder Mentor — a battle-hardened startup strategist.
