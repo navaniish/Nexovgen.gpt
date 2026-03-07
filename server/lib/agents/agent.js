@@ -29,7 +29,7 @@ export class Agent {
             const response = await orchestrator.routeAndExecute(
                 this.options.taskType || 'strategy',
                 messages,
-                this.persona,
+                context.systemPrompt || this.persona,
                 this.options.preferredModel
             );
 
