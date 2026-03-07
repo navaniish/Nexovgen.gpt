@@ -97,6 +97,7 @@ export function useWakeWord({ onWake, enabled = true, minConfidence = 0.0, lang 
         rec.maxAlternatives = 1;
 
         rec.onstart = () => {
+            console.log('[WakeWord] 🎤 Microphone started - Listening for "Hey Nexo"');
             setStatus(prev => prev !== 'listening' ? 'listening' : prev);
             retryCountRef.current = 0;
             // Delay first arm to avoid re-render on page load
@@ -113,10 +114,13 @@ export function useWakeWord({ onWake, enabled = true, minConfidence = 0.0, lang 
                 const text = result[0].transcript;
                 const conf = result[0].confidence;
 
+                console.log(`[WakeWord] Result: "${text}" (conf: ${conf.toFixed(2)})`);
+
                 // Apply confidence filter — Chrome often returns 0 for interim, allow those through
                 if (conf > 0 && conf < minConfidence) continue;
 
                 if (matchesWakeWord(text)) {
+                    console.log('[WakeWord] 🔥 Wake word detected!');
                     frozenRef.current = true;
                     setLastConfidence(conf > 0 ? conf : null);
                     // Unlock audio context before opening FaceToFace
