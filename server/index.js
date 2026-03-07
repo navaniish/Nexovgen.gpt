@@ -40,6 +40,19 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// ─── HEALTH & DIAGNOSTIC ENDPOINTS (TOP LEVEL) ────────────────────────────────
+app.get('/api/health', (req, res) => res.json({ status: 'active', version: '2.5.0-diag' }));
+app.get('/api/health-ai', async (req, res) => {
+    res.json({
+        openai: !!process.env.OPENAI_API_KEY,
+        firebase_sa: !!process.env.FIREBASE_SERVICE_ACCOUNT,
+        firebase_admin: admin.apps.length > 0,
+        firestore: !!db,
+        port: process.env.PORT || '5000',
+        node_env: process.env.NODE_ENV || 'development'
+    });
+});
+
 // ─── Global Request Logger ────────────────────────────────────────────────────
 app.use((req, res, next) => {
     const start = Date.now();
@@ -121,20 +134,6 @@ const authenticate = async (req, res, next) => {
     }
 };
 
-// ─── HEALTH & DIAGNOSTIC ENDPOINTS ───────────────────────────────────────────
-app.get('/api/health', (req, res) => res.json({ status: 'active', timestamp: new Date() }));
-
-app.get('/api/health-ai', async (req, res) => {
-    const status = {
-        openai: !!process.env.OPENAI_API_KEY,
-        firebase_sa: !!process.env.FIREBASE_SERVICE_ACCOUNT,
-        firebase_admin: admin.apps.length > 0,
-        firestore: !!db,
-        env_port: process.env.PORT || 'not set',
-        node_env: process.env.NODE_ENV || 'development'
-    };
-    res.json(status);
-});
 
 // ─── Mentor Prompts (Server-side authoritative copy) ──────────────────────────
 const MENTOR_PROMPTS = {
