@@ -508,6 +508,11 @@ export default function App() {
     const isFirstLoad = useRef(true);
     const synthRef = useRef(window.speechSynthesis);
 
+    // Derived / alias
+    const accentColor = appearance.accentColor || '#4F8EF7';
+    const sidebarOpen = isSidebarOpen;
+    const setSidebarOpen = setIsSidebarOpen;
+
     const handleWake = useCallback(() => {
         setWakeTriggered(true);
         setShowFaceMode(true);
