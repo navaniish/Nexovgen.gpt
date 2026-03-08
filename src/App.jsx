@@ -520,7 +520,7 @@ export default function App() {
         setShowFaceMode(true);
     }, []);
 
-    const { wakeActive, status } = useWakeWord({
+    const { wakeActive, status, restart } = useWakeWord({
         enabled: !!user && !showFaceMode && !isListening && settings.wakeWordEnabled, // disable wake word when manual mic is active
         onWake: handleWake,
         lang: lang,
@@ -529,7 +529,6 @@ export default function App() {
     // Auth listener — with 4s timeout fallback so loading never freezes
     useEffect(() => {
         let resolved = false;
-        // Safety net: if Firebase never fires, exit loading after 4s
         const timeout = setTimeout(() => {
             if (!resolved) { resolved = true; setChecking(false); }
         }, 4000);
@@ -538,14 +537,12 @@ export default function App() {
             if (!resolved) { resolved = true; clearTimeout(timeout); }
             setUser(u);
             if (u) {
-                // Fetch User Plan from Firestore
                 try {
                     const userRef = doc(db, 'users', u.uid);
                     const userSnap = await getDoc(userRef);
                     if (userSnap.exists() && userSnap.data().plan) {
                         setUserPlan(userSnap.data().plan);
                     } else {
-                        // Initialize with Free plan if not exists
                         const initialPlan = { id: 'free', name: 'Free' };
                         await setDoc(userRef, { plan: initialPlan }, { merge: true });
                         setUserPlan(initialPlan);
@@ -564,7 +561,7 @@ export default function App() {
         return () => { unsub(); clearTimeout(timeout); };
     }, []);
 
-    // Global Search Keybind
+    // Global Search Keybind and TTS Preload
     useEffect(() => {
         const handleSearchBind = (e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -573,15 +570,16 @@ export default function App() {
             }
         };
         window.addEventListener('keydown', handleSearchBind);
-
-        // Pre-load voices for TTS
         const loadVoices = () => { window.speechSynthesis.getVoices(); };
-        window.speechSynthesis.onvoiceschanged = loadVoices;
+        if (window.speechSynthesis.onvoiceschanged !== undefined) {
+            window.speechSynthesis.onvoiceschanged = loadVoices;
+        }
         loadVoices();
-
         return () => {
             window.removeEventListener('keydown', handleSearchBind);
-            window.speechSynthesis.onvoiceschanged = null;
+            if (window.speechSynthesis.onvoiceschanged !== undefined) {
+                window.speechSynthesis.onvoiceschanged = null;
+            }
         };
     }, []);
 
@@ -596,6 +594,7 @@ export default function App() {
         return () => window.removeEventListener('mousedown', handleClickOutside);
     }, [activeDropdown]);
 
+    // Template fetching
     useEffect(() => {
         if (!user) return;
         fetchUserTemplates();
@@ -620,21 +619,21 @@ export default function App() {
     // Always start at Home when user first logs in
     useEffect(() => {
         if (!user) return;
-        setMessages([]);      // ← always home on login
+        setMessages([]);
         fetchHistory();
     }, [user?.uid]);
 
-    // Show mentor greeting only when mentor changes while already in a chat
+    // Show mentor greeting
     useEffect(() => {
         if (!user) return;
         const name = user.displayName || user.email?.split('@')[0] || 'User';
-        // Only greet if user is already past login (messages exist or not first render)
         if (!isFirstLoad.current) {
             setMessages([{ role: 'assistant', content: mentor.greeting(name) }]);
         }
         isFirstLoad.current = false;
     }, [mentor.id]);
 
+    // Layout adjustment
     useEffect(() => {
         if (inputAreaRef.current) {
             inputAreaRef.current.style.height = 'auto';
@@ -642,7 +641,9 @@ export default function App() {
         }
     }, [input]);
 
-    useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+    useEffect(() => {
+        endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
 
     const fetchHistory = async () => {
         if (!user) return;
@@ -845,9 +846,10 @@ export default function App() {
             console.error("Chat error:", error);
             const isQuota = error.message.toLowerCase().includes('quota') || error.message.includes('429');
             const errMsg = isQuota
-                ? '⚠️ **AI Quota exceeded.** All available intelligence providers (Gemini, Claude, OpenAI) are currently capped. Please check your billing or use a different key.'
-                : `⚠️ **Intelligence Layer Error.** ${error.message}\n\n*Check server console for details.*`;
-            setMessages(prev => [...prev, { role: 'assistant', content: errMsg }]);
+                ? '⚠️ **AI Quota exceeded.** All available intelligence providers are currently capped. Please check your billing dashboard.'
+                : `⚠️ **Intelligence Layer Error.** ${error.message}\n\n*Check the console for detailed error traces.*`;
+
+            setMessages(prev => [...prev, { role: 'assistant', content: errMsg, error: true }]);
         } finally { setLoading(false); }
     };
 
@@ -1213,11 +1215,12 @@ export default function App() {
                             )}
 
                             {/* Fixed width container for indicator to prevent layout vibration/shifts */}
-                            <div style={{ width: wakeActive ? '24px' : '0px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ width: wakeActive ? 'auto' : '0px', overflow: 'hidden', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 {wakeActive && (
                                     <div
-                                        title={`NexovGen Voice is: ${status === 'listening' ? 'Active' : status}. Say "Hey Nexo" to start.`}
-                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px' }}
+                                        onClick={() => restart()}
+                                        title={`NexovGen Voice is: ${status === 'listening' ? 'Active' : status}. Click to restart or Say "Hey Nexo" to start.`}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', background: 'rgba(255,255,255,0.03)', padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}
                                     >
                                         <motion.div
                                             animate={{
@@ -1231,6 +1234,9 @@ export default function App() {
                                                 boxShadow: status === 'listening' ? '0 0 10px #00f2ff' : 'none'
                                             }}
                                         />
+                                        <span style={{ fontSize: '10px', color: status === 'listening' ? '#00f2ff' : status === 'blocked' ? '#f87171' : '#9ca3af', fontWeight: 600, letterSpacing: '0.05em' }}>
+                                            {status === 'listening' ? 'LISTENING' : status === 'blocked' ? 'MIC BLOCKED' : 'VOICE IDLE'}
+                                        </span>
                                     </div>
                                 )}
                             </div>

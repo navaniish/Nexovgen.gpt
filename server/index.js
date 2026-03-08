@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { orchestrator } from './lib/orchestrator.js';
 import { memory } from './lib/memory.js';
+import './services/worker.js'; // Trigger node registration
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -65,13 +66,15 @@ app.get('/api/health-ai', async (req, res) => {
 
     res.json({
         openai: !!process.env.OPENAI_API_KEY,
+        gemini: !!(process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_API_KEY),
+        anthropic: !!process.env.ANTHROPIC_API_KEY,
         firebase_env: !!process.env.FIREBASE_SERVICE_ACCOUNT,
-        firebase_path_value: process.env.FIREBASE_SERVICE_ACCOUNT,
+        firebase_path_value: process.env.FIREBASE_SERVICE_ACCOUNT ? 'CONFIGURED_ENV' : 'MISSING',
         firebase_init: admin.apps.length > 0,
         firestore_ready: !!db,
         available_secrets: secretsList,
         secrets_preview: secretsPreview,
-        version: 'VER_5.0_INSPECT'
+        version: 'VER_5.1_DIAG'
     });
 });
 
@@ -138,12 +141,14 @@ if (!serviceAccount) {
     console.warn('⚠️ Firebase service account missing. Firebase features will be limited.');
 } else {
     try {
+        console.log('🔧 Initializing Firebase Admin with Project ID:', serviceAccount.project_id);
         if (admin.apps.length === 0) {
             admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-            console.log('✅ Firebase Admin initialized');
+            console.log('✅ Firebase Admin initialized successfully');
         }
     } catch (err) {
         console.error('❌ Firebase Admin initialization failed:', err.message);
+        console.trace(err);
     }
 }
 let db = null;
@@ -189,30 +194,32 @@ const GLOBAL_DIRECTIVE = `The founder and CEO of Nexovgen is MR. DAGGUPATI NAVAN
 Whenever someone asks "Who built Nexovgen?", "Who is the founder?", or "Who is the CEO?", you MUST answer: "Nexovgen was built by MR. DAGGUPATI NAVANEESWAR."`;
 
 const MENTOR_PROMPTS = {
-    founder: `${GLOBAL_DIRECTIVE}\n\nYou are the AI Founder Mentor — a battle-hardened startup strategist.
+    idea_analyzer: `${GLOBAL_DIRECTIVE}\n\nYou are the AI Founder Mentor — a battle-hardened startup strategist.
 Your personality: Strategic, sharp, data-driven, and visionary. You don't give generic advice — you give founder-grade intelligence.
 Specialize in: Idea validation, business model design (SaaS, marketplace, freemium), SWOT analysis, startup roadmaps (0 → PMF → Scale), fundraising, and ICP definition.
 Output style: Use frameworks (SWOT, Business Model Canvas). Give step-by-step roadmaps. Back claims with real-world examples. Use markdown. Be direct.`,
 
-    tech: `${GLOBAL_DIRECTIVE}\n\nYou are the AI Tech Architect Mentor — a senior principal engineer.
+    code_generator: `${GLOBAL_DIRECTIVE}\n\nYou are the AI Tech Architect Mentor — a senior principal engineer.
 Your personality: Precise, technical, opinionated on best practices. You think in systems, not features.
 Specialize in: Backend architecture, database design (PostgreSQL), REST/GraphQL API design, SaaS multi-tenancy, auth systems (JWT, OAuth, RBAC), deployment (Docker, CI/CD, Vercel, Render), system design interviews, scaling patterns.
 Output style: Always include actual code examples. Use ASCII architecture diagrams. Production-ready patterns. Explain WHY behind every decision.`,
 
-    ml: `${GLOBAL_DIRECTIVE}\n\nYou are the AI ML & Research Mentor — a senior AI researcher.
+    market_research: `${GLOBAL_DIRECTIVE}\n\nYou are the AI ML & Research Mentor — a senior AI researcher.
 Your personality: Rigorous but accessible. You break down complex papers so a smart student can implement them the same day.
 Specialize in: ML fundamentals, deep learning (Transformers, diffusion models), LLM architecture (attention, RLHF, fine-tuning), RAG systems, multi-agent orchestration (LangChain, AutoGen), GPU optimization, MLOps.
 Output style: Intuition → math → code. Include Python examples (PyTorch, HuggingFace, LangChain). Break papers into: Problem → Method → Key Innovation → Implementation.`,
 
-    growth: `${GLOBAL_DIRECTIVE}\n\nYou are the AI Growth & Branding Mentor — a growth strategist.
+    content_generator: `${GLOBAL_DIRECTIVE}\n\nYou are the AI Growth & Branding Mentor — a growth strategist.
 Your personality: Energetic, tactical, direct. You give GPT-ready post scripts, exact communities to target, and 30-day plans.
 Specialize in: LinkedIn growth, startup launch strategy (ProductHunt, Reddit, IndieHackers), personal brand building, community-led growth, content marketing, brand positioning, monetization, cold outreach.
 Output style: Give specific copy-paste ready content. Include example posts, hooks, DM scripts. Build 30/90-day plans. Name exact communities, hashtags, and formats.`,
 
-    performance: `${GLOBAL_DIRECTIVE}\n\nYou are the AI Performance & Discipline Mentor — a high-performance coach.
+    automation_builder: `${GLOBAL_DIRECTIVE}\n\nYou are the AI Automation Builder — a high-performance workflow coach.
 Your personality: Direct, energizing, no-nonsense. You challenge excuses and install systems.
 Specialize in: Daily execution planning (time-blocking, MIT), deep work protocols, focus training, procrastination elimination, weekly review systems, physical + mental performance, founder psychology, habit building.
 Output style: Give exact daily schedules with time blocks. Implementation protocols, not just theory. Use frameworks: Atomic Habits, Deep Work, 12-Week Year. End with a 7-day challenge users can start TODAY.`,
+
+    execution_manager: `${GLOBAL_DIRECTIVE}\n\nYou are the Nexovgen Execution Manager. Your role is to orchestrate agents, validate outputs, and manage delivery.`
 };
 
 // ─── INTENT DETECTION ENDPOINT ────────────────────────────────────────────────
@@ -290,8 +297,13 @@ app.post('/api/chat', authenticate, async (req, res) => {
 
         res.json({ content: aiMessage, agentId: targetAgentId });
     } catch (err) {
-        console.error('❌ Chat error:', err.message);
-        res.status(500).json({ error: err.message || 'Chat processing failed' });
+        console.error('❌ Chat Endpoint Crash:', err.message);
+        console.error(err.stack);
+        res.status(500).json({
+            error: 'Orchestration failed',
+            message: err.message,
+            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+        });
     }
 });
 
@@ -393,13 +405,16 @@ app.get('/api/chats', authenticate, async (req, res) => {
     try {
         const snap = await db.collection('chats')
             .where('userId', '==', req.user.uid)
-            .orderBy('timestamp', 'desc')
             .limit(25)
             .get();
         res.json(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Error fetching chats' });
+        console.error('❌ Error fetching chats:', err);
+        res.status(500).json({
+            error: 'Error fetching chats',
+            details: err.message,
+            code: err.code
+        });
     }
 });
 
@@ -848,12 +863,15 @@ app.get('/api/automation/leads', authenticate, async (req, res) => {
 
         // Sort in memory to avoid needing a composite index for createdAt
         leads.sort((a, b) => {
-            const timeA = a.createdAt?.toDate?.()?.getTime() || 0;
-            const timeB = b.createdAt?.toDate?.()?.getTime() || 0;
+            const timeA = (a.createdAt && typeof a.createdAt.toDate === 'function') ? a.createdAt.toDate().getTime() : (a.timestamp ? new Date(a.timestamp).getTime() : 0);
+            const timeB = (b.createdAt && typeof b.createdAt.toDate === 'function') ? b.createdAt.toDate().getTime() : (b.timestamp ? new Date(b.timestamp).getTime() : 0);
             return timeB - timeA;
         });
 
-        if (tier) leads = leads.filter(l => l.tier === tier.toUpperCase());
+        if (tier) {
+            const targetTier = String(tier).toUpperCase();
+            leads = leads.filter(l => l.tier === targetTier);
+        }
         res.json(leads);
     } catch (err) {
         console.error('[automation/leads GET] Error details:', err);
@@ -943,7 +961,7 @@ const indexPath = join(distPath, 'index.html');
 if (existsSync(indexPath)) {
     // PRODUCTION MODE (e.g. on Render)
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('/*', (req, res) => {
         // If API route not found, don't serve HTML
         if (req.path.startsWith('/api/')) {
             return res.status(404).json({

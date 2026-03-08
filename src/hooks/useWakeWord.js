@@ -1,110 +1,87 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+
 /**
- * useWakeWord — continuous background speech recognition that listens for
- * "Hey Nexo" and Indian/Telugu-accent variants.
- *
- * Usage:
- *   const { wakeActive, status, confidence } = useWakeWord({ onWake: () => setShowFaceMode(true) });
- *
- *  wakeActive  – true while background mic is armed (stable, no flicker)
- *  status      – 'idle' | 'listening' | 'error' | 'blocked'
- *  confidence  – last wake-word detection confidence (0–1)
- *  minConfidence – filter out detections below this threshold (default 0.55)
+ * useWakeWord Hook
+ * Low-level speech recognition loop for "Hey Nexo" wake word.
  */
-
-import { useEffect, useRef, useState, useCallback } from 'react';
-
-// ── Wake phrases (Indian English + Telugu slang variations) ─────────────────
-const WAKE_PHRASES = [
-    // Standard
-    'hey nexo', 'hi nexo', 'ok nexo', 'okay nexo', 'yo nexo',
-    // Indian accent variants
-    'hey naxo', 'hai nexo', 'hai naxo', 'aye nexo', 'aye naxo',
-    'hey nekso', 'hey nexio', 'a nexo', 'hey next',
-    'hay nexo', 'hey nikso', 'hei nexo',
-    // Telugu slang
-    'oye nexo', 'ra nexo', 'bro nexo', 'da nexo', 'maccha nexo',
-    'mama nexo', 'bava nexo', 'anna nexo', 'tammudu nexo',
-    // NexoVGen variants
-    'hey nexovgen', 'hi nexovgen', 'ok nexovgen', 'nexo',
-    // Casual
-    'nexo wake up', 'nexo start', 'start nexo',
-    // Regional Scripts (Hindi/Marathi)
-    'हे नेक्सो', 'नेक्सो', 'नमस्ते नेक्सो',
-    // Telugu
-    'హే నెక్సో', 'నెక్సో', 'ఓయ్ నెక్సో', 'నెక్సో స్టార్ట్',
-    'మామా నెక్సో', 'బావ నెక్సో',
-    // Tamil
-    'ஹே நெக்சோ', 'நெக்சோ',
-    // Kannada
-    'ಹೇ ನೆಕ್ಸೋ', 'ನೆಕ್ಸೋ',
-    // Malayalam
-    'ഹே నెక్షో', 'నెక్షో',
-    // Bengali
-    'হে নেক্সো', 'নেক্সో',
-    // Gujarati
-    'હે નેક્સો',
-];
-
-// Fuzzy check — does the transcript contain any wake phrase?
-const matchesWakeWord = (text) => {
-    const t = text.toLowerCase().trim();
-    return WAKE_PHRASES.some(phrase => t.includes(phrase));
-};
-
-export function useWakeWord({ onWake, enabled = true, minConfidence = 0.0, lang = null }) {
-    // single boolean state — only changes when truly arming/disarming
+export function useWakeWord({ onWake, enabled = true, minConfidence = 0.0, lang = 'en-US' }) {
     const [wakeActive, setWakeActive] = useState(false);
-    const [status, setStatus] = useState('idle'); // 'idle' | 'listening' | 'error' | 'blocked'
+    const [status, setStatus] = useState('idle'); // idle | listening | blocked | error
     const [lastConfidence, setLastConfidence] = useState(null);
 
     const recognitionRef = useRef(null);
-    const restartTimerRef = useRef(null);
     const retryCountRef = useRef(0);
-    const frozenRef = useRef(false);      // true for 4 s after wake to avoid re-triggering
-    const enabledRef = useRef(enabled);   // track enabled without causing restarts
-    const armedRef = useRef(false);       // internal armed state
+    const restartTimerRef = useRef(null);
+    const isComponentMounted = useRef(true);
+    const enabledRef = useRef(enabled);
+    const frozenRef = useRef(false);
+    const armedRef = useRef(false);
 
-    // Keep enabledRef in sync
-    useEffect(() => { enabledRef.current = enabled; }, [enabled]);
+    // Sync refs
+    useEffect(() => {
+        enabledRef.current = enabled;
+        if (enabled) {
+            armedRef.current = true;
+            setWakeActive(true);
+        } else {
+            armedRef.current = false;
+            setWakeActive(false);
+        }
+    }, [enabled]);
+
+    useEffect(() => {
+        isComponentMounted.current = true;
+        return () => { isComponentMounted.current = false; };
+    }, []);
+
+    const WAKE_PHRASES = [
+        'hey nexo', 'hi nexo', 'okay nexo', 'ok nexo', 'hello nexo',
+        'hey nexo ai', 'hi nexo ai'
+    ];
+
+    const matchesWakeWord = (text) => {
+        const t = text.toLowerCase().trim();
+        return WAKE_PHRASES.some(phrase => t.includes(phrase));
+    };
 
     const stop = useCallback(() => {
         clearTimeout(restartTimerRef.current);
         if (recognitionRef.current) {
-            try { recognitionRef.current.abort(); } catch (_) { }
+            try {
+                recognitionRef.current.onend = null;
+                recognitionRef.current.onerror = null;
+                recognitionRef.current.stop();
+            } catch (_) { }
             recognitionRef.current = null;
         }
-        if (armedRef.current) {
-            armedRef.current = false;
-            setWakeActive(false);
-        }
         setStatus('idle');
-        retryCountRef.current = 0;
     }, []);
 
     const start = useCallback(() => {
-        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) {
-            console.warn('[useWakeWord] Speech Recognition not supported in this browser.');
+        if (!enabledRef.current || !isComponentMounted.current) return;
+        if (recognitionRef.current) return;
+        // Don't start if another tab/window is using it or if backgrounded
+        if (!document.hasFocus()) {
+            console.log('[WakeWord] ⏸ Window not focused, skipping start');
+            setStatus('idle');
+            return;
+        }
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
             setStatus('blocked');
             return;
         }
-        if (recognitionRef.current) return; // already running
 
-        const rec = new SR();
+        const rec = new SpeechRecognition();
         rec.continuous = true;
         rec.interimResults = true;
-        rec.lang = lang?.code || 'en-US';
-        rec.maxAlternatives = 1;
+        rec.lang = lang;
 
         rec.onstart = () => {
-            console.log('[WakeWord] 🎤 Microphone started - Listening for "Hey Nexo"');
-            setStatus(prev => prev !== 'listening' ? 'listening' : prev);
+            console.log('[WakeWord] 🎤 Listening for "Hey Nexo"...');
+            setStatus('listening');
             retryCountRef.current = 0;
-            // Delay first arm to avoid re-render on page load
-            if (!armedRef.current) {
-                armedRef.current = true;
-                setTimeout(() => setWakeActive(true), 500);
-            }
         };
 
         rec.onresult = (event) => {
@@ -116,21 +93,21 @@ export function useWakeWord({ onWake, enabled = true, minConfidence = 0.0, lang 
 
                 console.log(`[WakeWord] Result: "${text}" (conf: ${conf.toFixed(2)})`);
 
-                // Apply confidence filter — Chrome often returns 0 for interim, allow those through
                 if (conf > 0 && conf < minConfidence) continue;
 
                 if (matchesWakeWord(text)) {
                     console.log('[WakeWord] 🔥 Wake word detected!');
                     frozenRef.current = true;
                     setLastConfidence(conf > 0 ? conf : null);
-                    // Unlock audio context before opening FaceToFace
+
+                    // Unlock audio
                     try {
                         const silent = new SpeechSynthesisUtterance('');
                         silent.volume = 0;
                         window.speechSynthesis.speak(silent);
                     } catch (_) { }
+
                     onWake?.();
-                    // Freeze for 4 s so it doesn't re-trigger immediately
                     setTimeout(() => { frozenRef.current = false; }, 4000);
                     break;
                 }
@@ -138,7 +115,11 @@ export function useWakeWord({ onWake, enabled = true, minConfidence = 0.0, lang 
         };
 
         rec.onerror = (e) => {
-            if (e.error === 'no-speech' || e.error === 'aborted') return;
+            // Ignore trivial ones
+            if (e.error === 'no-speech' || e.error === 'aborted') {
+                if (e.error === 'aborted') recognitionRef.current = null;
+                return;
+            }
             console.warn('[WakeWord] error:', e.error);
 
             if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
@@ -146,29 +127,22 @@ export function useWakeWord({ onWake, enabled = true, minConfidence = 0.0, lang 
                 return;
             }
 
-            // For other errors (like audio-capture), try to restart after a delay
-            if (enabledRef.current && !frozenRef.current) {
-                setStatus('error');
-                clearTimeout(restartTimerRef.current);
-                restartTimerRef.current = setTimeout(() => {
-                    if (enabledRef.current) start();
-                }, 2000);
-            }
+            setStatus('error');
+            clearTimeout(restartTimerRef.current);
+            restartTimerRef.current = setTimeout(() => {
+                if (enabledRef.current) start();
+            }, 3000);
         };
 
         rec.onend = () => {
             recognitionRef.current = null;
-            if (enabledRef.current && !frozenRef.current) {
-                // Normal cycle restart
+            if (enabledRef.current && !frozenRef.current && document.hasFocus()) {
                 clearTimeout(restartTimerRef.current);
                 restartTimerRef.current = setTimeout(() => {
                     if (enabledRef.current) start();
-                }, 600);
-            } else if (!enabledRef.current) {
-                if (armedRef.current) {
-                    armedRef.current = false;
-                    setWakeActive(false);
-                }
+                }, 1000);
+            } else if (enabledRef.current && !frozenRef.current) {
+                console.log('[WakeWord] ⏸ Paused (lost focus)');
                 setStatus('idle');
             }
         };
@@ -178,10 +152,10 @@ export function useWakeWord({ onWake, enabled = true, minConfidence = 0.0, lang 
             rec.start();
         } catch (err) {
             console.warn('[WakeWord] Start failed:', err);
-            // If start fails synchronously (e.g. already starting), retry soon
+            recognitionRef.current = null;
             if (enabledRef.current) {
                 clearTimeout(restartTimerRef.current);
-                restartTimerRef.current = setTimeout(() => start(), 1000);
+                restartTimerRef.current = setTimeout(() => start(), 2000);
             }
         }
     }, [onWake, minConfidence, lang]);
@@ -192,14 +166,26 @@ export function useWakeWord({ onWake, enabled = true, minConfidence = 0.0, lang 
         } else {
             stop();
         }
-        return () => stop();
+
+        const h = () => {
+            if (enabledRef.current && !recognitionRef.current) {
+                console.log('[WakeWord] 🪟 focus returned, restarting...');
+                start();
+            }
+        };
+        window.addEventListener('focus', h);
+
+        return () => {
+            stop();
+            window.removeEventListener('focus', h);
+        };
     }, [enabled, start, stop]);
 
-    const restart = useCallback(() => {
+    const manualRestart = useCallback(() => {
         retryCountRef.current = 0;
         stop();
         setTimeout(() => start(), 200);
     }, [stop, start]);
 
-    return { wakeActive, status, confidence: lastConfidence, restart };
+    return { wakeActive, status, confidence: lastConfidence, restart: manualRestart };
 }

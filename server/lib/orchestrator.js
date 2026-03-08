@@ -3,27 +3,29 @@ import { agents } from './agents/agent-definitions.js';
 
 class AIOrchestrator {
     constructor() {
+        const getEnv = (key) => process.env[key] || process.env[`VITE_${key}`];
+
         this.providers = {
-            openai: process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null,
-            anthropic: process.env.ANTHROPIC_API_KEY ? { apiKey: process.env.ANTHROPIC_API_KEY } : null,
-            gemini: (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) ? {
-                apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY
+            openai: getEnv('OPENAI_API_KEY') ? new OpenAI({ apiKey: getEnv('OPENAI_API_KEY') }) : null,
+            anthropic: getEnv('ANTHROPIC_API_KEY') ? { apiKey: getEnv('ANTHROPIC_API_KEY') } : null,
+            gemini: (getEnv('GEMINI_API_KEY') || getEnv('GOOGLE_API_KEY')) ? {
+                apiKey: getEnv('GEMINI_API_KEY') || getEnv('GOOGLE_API_KEY')
             } : null,
-            deepseek: process.env.DEEPSEEK_API_KEY ? { apiKey: process.env.DEEPSEEK_API_KEY } : null,
-            gateway: process.env.LLM_GATEWAY_KEY ? new OpenAI({
-                apiKey: process.env.LLM_GATEWAY_KEY,
-                baseURL: process.env.LLM_GATEWAY_URL || 'https://api.llmgateway.io/v1/'
+            deepseek: getEnv('DEEPSEEK_API_KEY') ? { apiKey: getEnv('DEEPSEEK_API_KEY') } : null,
+            gateway: getEnv('LLM_GATEWAY_KEY') ? new OpenAI({
+                apiKey: getEnv('LLM_GATEWAY_KEY'),
+                baseURL: getEnv('LLM_GATEWAY_URL') || 'https://api.llmgateway.io/v1/'
             }) : null,
-            ollama: process.env.OLLAMA_API_KEY ? new OpenAI({
-                apiKey: process.env.OLLAMA_API_KEY,
-                baseURL: process.env.OLLAMA_BASE_URL || 'http://localhost:11434/v1'
+            ollama: getEnv('OLLAMA_API_KEY') ? new OpenAI({
+                apiKey: getEnv('OLLAMA_API_KEY'),
+                baseURL: getEnv('OLLAMA_BASE_URL') || 'http://localhost:11434/v1'
             }) : null,
         };
 
         this.routingRules = {
-            strategy: process.env.LLM_GATEWAY_KEY ? 'gateway' : (process.env.GEMINI_API_KEY ? 'gemini' : 'openai'),
-            technical: process.env.LLM_GATEWAY_KEY ? 'gateway' : (process.env.GEMINI_API_KEY ? 'gemini' : 'openai'),
-            research: process.env.LLM_GATEWAY_KEY ? 'gateway' : (process.env.GEMINI_API_KEY ? 'gemini' : 'openai'),
+            strategy: getEnv('LLM_GATEWAY_KEY') ? 'gateway' : (getEnv('GEMINI_API_KEY') ? 'gemini' : 'openai'),
+            technical: getEnv('LLM_GATEWAY_KEY') ? 'gateway' : (getEnv('GEMINI_API_KEY') ? 'gemini' : 'openai'),
+            research: getEnv('LLM_GATEWAY_KEY') ? 'gateway' : (getEnv('GEMINI_API_KEY') ? 'gemini' : 'openai'),
             growth: 'openai',
             product: 'openai',
         };
@@ -44,7 +46,8 @@ Agent IDs:
 
 Return ONLY a JSON object: { "agentId": "<agent_id>", "confidence": <0-1>, "isMultiStep": <bool> }`;
 
-            const preferredIntentProvider = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) ? 'gemini' : 'openai';
+            const getEnv = (key) => process.env[key] || process.env[`VITE_${key}`];
+            const preferredIntentProvider = (getEnv('GEMINI_API_KEY') || getEnv('GOOGLE_API_KEY')) ? 'gemini' : 'openai';
             console.log(`[Orchestrator] Detecting intent using: ${preferredIntentProvider}`);
 
             let raw;
@@ -178,9 +181,11 @@ Return ONLY a JSON object: { "agentId": "<agent_id>", "confidence": <0-1>, "isMu
             if (options.model?.includes('GPT-4o')) model = 'gpt-4o';
             else if (options.model?.toLowerCase().includes('gpt-4o')) model = 'gpt-4o';
 
+            const safeSystemPrompt = systemPrompt || 'You are a helpful assistant.';
+
             const completion = await this.providers.openai.chat.completions.create({
                 model: model,
-                messages: [{ role: 'system', content: systemPrompt }, ...messages],
+                messages: [{ role: 'system', content: safeSystemPrompt }, ...messages],
                 temperature: options.temperature ?? 0.7,
                 max_tokens: options.max_tokens ?? 2000,
             });
@@ -273,21 +278,46 @@ Return ONLY a JSON object: { "agentId": "<agent_id>", "confidence": <0-1>, "isMu
         if (options.model?.includes('Gemini 2.0')) model = 'gemini-2.0-flash';
         if (options.model?.includes('Gemini 2.5')) model = 'gemini-2.5-flash';
 
+        const safeSystemPrompt = systemPrompt || 'You are a helpful assistant.';
+
+        // For Gemini, we must ensure alternating roles: user -> model -> user
+        // We inject the system prompt into the first user message if possible
+        const contents = [];
+        const combinedHistory = [...messages];
+
+        if (combinedHistory.length > 0 && combinedHistory[0].role === 'user') {
+            // Prepend system prompt to the first user message
+            combinedHistory[0].content = `${safeSystemPrompt}\n\n${combinedHistory[0].content}`;
+        } else {
+            // If first message isn't user (unlikely), prepend a new user message
+            combinedHistory.unshift({ role: 'user', content: safeSystemPrompt });
+        }
+
+        const formattedMessages = combinedHistory.map(m => ({
+            role: m.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: m.content }]
+        }));
+
+        // Basic deduplication of consecutive identical roles (Gemini requirement)
+        const finalContents = [];
+        formattedMessages.forEach(msg => {
+            if (finalContents.length > 0 && finalContents[finalContents.length - 1].role === msg.role) {
+                // Merge consecutive messages of the same role
+                finalContents[finalContents.length - 1].parts[0].text += `\n\n${msg.parts[0].text}`;
+            } else {
+                finalContents.push(msg);
+            }
+        });
+
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.providers.gemini.apiKey}`;
         console.log('[Orchestrator] Hitting Gemini URL:', url.replace(this.providers.gemini.apiKey, 'REDACTED'));
+
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [
-                    { role: 'user', parts: [{ text: systemPrompt }] },
-                    ...messages.map(m => ({
-                        role: m.role === 'assistant' ? 'model' : 'user',
-                        parts: [{ text: m.content }]
-                    }))
-                ]
-            })
+            body: JSON.stringify({ contents: finalContents })
         });
+
         if (!response.ok) {
             const errData = await response.json();
             const error = new Error(`Gemini Error: ${response.status} - ${JSON.stringify(errData)}`);
