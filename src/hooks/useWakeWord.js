@@ -36,20 +36,31 @@ export function useWakeWord({ onWake, enabled = true, minConfidence = 0.0, lang 
 
     const WAKE_PHRASES = [
         'hey nexo', 'hi nexo', 'okay nexo', 'ok nexo', 'hello nexo',
-        'hey nexo ai', 'hi nexo ai'
+        'hey nexo ai', 'hi nexo ai', 'hey neks', 'hay nexo', 'nexus', 'nexen'
     ];
 
     const matchesWakeWord = (text) => {
-        const t = text.toLowerCase().trim();
+        // Remove punctuation and common speech recognition artifacts
+        const t = text.toLowerCase().replace(/[.,!?;:]/g, '').trim();
         return WAKE_PHRASES.some(phrase => t.includes(phrase));
     };
+
+    const onWakeRef = useRef(onWake);
+    const langRef = useRef(lang);
+    const minConfRef = useRef(minConfidence);
+
+    useEffect(() => { onWakeRef.current = onWake; }, [onWake]);
+    useEffect(() => { langRef.current = lang; }, [lang]);
+    useEffect(() => { minConfRef.current = minConfidence; }, [minConfidence]);
 
     const stop = useCallback(() => {
         clearTimeout(restartTimerRef.current);
         if (recognitionRef.current) {
+            console.log('[WakeWord] 🛑 Stopping recognition instance');
             try {
                 recognitionRef.current.onend = null;
                 recognitionRef.current.onerror = null;
+                recognitionRef.current.onresult = null;
                 recognitionRef.current.stop();
             } catch (_) { }
             recognitionRef.current = null;
@@ -60,15 +71,12 @@ export function useWakeWord({ onWake, enabled = true, minConfidence = 0.0, lang 
     const start = useCallback(() => {
         if (!enabledRef.current || !isComponentMounted.current) return;
         if (recognitionRef.current) return;
-        // Don't start if another tab/window is using it or if backgrounded
-        if (!document.hasFocus()) {
-            console.log('[WakeWord] ⏸ Window not focused, skipping start');
-            setStatus('idle');
-            return;
-        }
+        // We used to check for focus here, but that's too restrictive for many users.
+        // The browser will handle background throttling itself.
 
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
+            console.error('[WakeWord] Speech recognition not supported');
             setStatus('blocked');
             return;
         }
@@ -76,10 +84,10 @@ export function useWakeWord({ onWake, enabled = true, minConfidence = 0.0, lang 
         const rec = new SpeechRecognition();
         rec.continuous = true;
         rec.interimResults = true;
-        rec.lang = lang;
+        rec.lang = langRef.current;
 
         rec.onstart = () => {
-            console.log('[WakeWord] 🎤 Listening for "Hey Nexo"...');
+            console.log('[WakeWord] 🎤 Listening for "Hey Nexo" (Lang:', rec.lang, ')');
             setStatus('listening');
             retryCountRef.current = 0;
         };
@@ -88,15 +96,18 @@ export function useWakeWord({ onWake, enabled = true, minConfidence = 0.0, lang 
             if (frozenRef.current) return;
             for (let i = event.resultIndex; i < event.results.length; i++) {
                 const result = event.results[i];
+                if (!result.isFinal && !rec.interimResults) continue;
+
                 const text = result[0].transcript;
                 const conf = result[0].confidence;
 
-                console.log(`[WakeWord] Result: "${text}" (conf: ${conf.toFixed(2)})`);
+                // Log every result to help debugging
+                console.log(`[WakeWord] Heard: "${text}" (conf: ${conf.toFixed(2)})`);
 
-                if (conf > 0 && conf < minConfidence) continue;
+                if (conf > 0 && conf < minConfRef.current) continue;
 
                 if (matchesWakeWord(text)) {
-                    console.log('[WakeWord] 🔥 Wake word detected!');
+                    console.log('[WakeWord] 🔥 WAKE WORD DETECTED!');
                     frozenRef.current = true;
                     setLastConfidence(conf > 0 ? conf : null);
 
@@ -107,7 +118,7 @@ export function useWakeWord({ onWake, enabled = true, minConfidence = 0.0, lang 
                         window.speechSynthesis.speak(silent);
                     } catch (_) { }
 
-                    onWake?.();
+                    onWakeRef.current?.();
                     setTimeout(() => { frozenRef.current = false; }, 4000);
                     break;
                 }
@@ -120,7 +131,7 @@ export function useWakeWord({ onWake, enabled = true, minConfidence = 0.0, lang 
                 if (e.error === 'aborted') recognitionRef.current = null;
                 return;
             }
-            console.warn('[WakeWord] error:', e.error);
+            console.warn('[WakeWord] Recognition error:', e.error);
 
             if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
                 setStatus('blocked');
@@ -130,35 +141,51 @@ export function useWakeWord({ onWake, enabled = true, minConfidence = 0.0, lang 
             setStatus('error');
             clearTimeout(restartTimerRef.current);
             restartTimerRef.current = setTimeout(() => {
-                if (enabledRef.current) start();
+                if (enabledRef.current && isComponentMounted.current) {
+                    console.log('[WakeWord] Attempting recovery after error...');
+                    start();
+                }
             }, 3000);
         };
 
         rec.onend = () => {
             recognitionRef.current = null;
-            if (enabledRef.current && !frozenRef.current && document.hasFocus()) {
+            const now = Date.now();
+            const sessionDuration = now - (rec._startTime || now);
+
+            if (enabledRef.current && !frozenRef.current && isComponentMounted.current) {
                 clearTimeout(restartTimerRef.current);
+
+                // If the session was extremely short (< 500ms), it likely failed to start properly.
+                // We'll wait longer before retrying to avoid a tight loop.
+                const retryDelay = sessionDuration < 500 ? 3000 : 1000;
+
+                if (sessionDuration < 500) {
+                    console.warn(`[WakeWord] Session ended too quickly (${sessionDuration}ms). Throttling restart...`);
+                }
+
                 restartTimerRef.current = setTimeout(() => {
-                    if (enabledRef.current) start();
-                }, 1000);
-            } else if (enabledRef.current && !frozenRef.current) {
-                console.log('[WakeWord] ⏸ Paused (lost focus)');
-                setStatus('idle');
+                    if (enabledRef.current && isComponentMounted.current) {
+                        console.log('[WakeWord] Cycle complete, restarting listener...');
+                        start();
+                    }
+                }, retryDelay);
             }
         };
 
         recognitionRef.current = rec;
         try {
+            rec._startTime = Date.now();
             rec.start();
         } catch (err) {
             console.warn('[WakeWord] Start failed:', err);
             recognitionRef.current = null;
             if (enabledRef.current) {
                 clearTimeout(restartTimerRef.current);
-                restartTimerRef.current = setTimeout(() => start(), 2000);
+                restartTimerRef.current = setTimeout(() => start(), 3000);
             }
         }
-    }, [onWake, minConfidence, lang]);
+    }, []); // start now has NO dependencies, it uses refs!
 
     useEffect(() => {
         if (enabled) {

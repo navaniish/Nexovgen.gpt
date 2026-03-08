@@ -461,6 +461,8 @@ function AllChatsPanel({ history, groupedHistory, onSelect, onDelete, onClose })
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 export default function App() {
+    const { appearance } = useAppearance();
+    const { lang, setLang, LANGUAGES, LANGUAGE_GROUPS } = useLanguage();
     const [user, setUser] = useState(null);
     const [checking, setChecking] = useState(true);
     const [mentor, setMentor] = useState(MENTORS[0]);
@@ -469,15 +471,6 @@ export default function App() {
     const [input, setInput] = useState('');
     const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
-
-    useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth < 1024);
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
-
-    const sidebarOpen = isSidebarOpen;
-    const setSidebarOpen = setIsSidebarOpen;
     const [loading, setLoading] = useState(false);
     const [showMentorPicker, setShowMentorPicker] = useState(false);
     const [showPricing, setShowPricing] = useState(false);
@@ -489,11 +482,9 @@ export default function App() {
     const [isListening, setIsListening] = useState(false);
     const [showCommands, setShowCommands] = useState(false);
     const [userPlan, setUserPlan] = useState({ id: 'free', name: 'Free' });
-
     const [showSettings, setShowSettings] = useState(false);
     const [showFaceMode, setShowFaceMode] = useState(false);
-    const [wakeTriggered, setWakeTriggered] = useState(false); // true when opened via Hey Nexo
-
+    const [wakeTriggered, setWakeTriggered] = useState(false);
     const [showAILab, setShowAILab] = useState(false);
     const [showAutomationHub, setShowAutomationHub] = useState(false);
     const [showAllChats, setShowAllChats] = useState(false);
@@ -501,149 +492,81 @@ export default function App() {
     const [isFocused, setIsFocused] = useState(false);
     const [chatMode, setChatMode] = useState('Planning');
     const [chatModel, setChatModel] = useState('Gemini 2.0 Flash');
-    const [activeDropdown, setActiveDropdown] = useState(null); // 'mode' | 'model' | null
+    const [activeDropdown, setActiveDropdown] = useState(null);
+    const [attachments, setAttachments] = useState([]);
+    const [isAutoSpeakEnabled, setIsAutoSpeakEnabled] = useState(false);
+    const [showLangPicker, setShowLangPicker] = useState(false);
+    const [settings, setSettings] = useState(() => {
+        try { return { wakeWordEnabled: true, ...JSON.parse(localStorage.getItem('nxv_settings') || '{}') }; }
+        catch { return { wakeWordEnabled: true }; }
+    });
+
     const endRef = useRef(null);
     const inputAreaRef = useRef(null);
     const fileInputRef = useRef(null);
     const recognitionRef = useRef(null);
-    const [attachments, setAttachments] = useState([]);
-    const [isAutoSpeakEnabled, setIsAutoSpeakEnabled] = useState(false);
     const isFirstLoad = useRef(true);
     const synthRef = useRef(window.speechSynthesis);
-    const [settings, setSettings] = useState(() => {
-        try {
-            return {
-                wakeWordEnabled: true,
-                ...JSON.parse(localStorage.getItem('nxv_settings') || '{}')
-            };
-        } catch { return { wakeWordEnabled: true }; }
-    });
 
-    const { appearance } = useAppearance();
-    const accentColor = appearance.accentColor || '#4F8EF7';
-    const { lang, setLang, LANGUAGES, LANGUAGE_GROUPS } = useLanguage();
-    const [showLangPicker, setShowLangPicker] = useState(false);
-
-    // ── "Hey Nexo" wake word ────────────────────────────────────────────────
     const handleWake = useCallback(() => {
         setWakeTriggered(true);
         setShowFaceMode(true);
     }, []);
 
     const { wakeActive, status, restart } = useWakeWord({
-        enabled: !!user && !showFaceMode && !isListening && settings.wakeWordEnabled, // disable wake word when manual mic is active
+        enabled: !!user && !showFaceMode && !isListening && settings.wakeWordEnabled,
         onWake: handleWake,
-        lang: lang,
+        lang: lang?.code || 'en-US',
     });
 
-    // Auth listener — with 4s timeout fallback so loading never freezes
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 1024);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     useEffect(() => {
         let resolved = false;
-        const timeout = setTimeout(() => {
-            if (!resolved) { resolved = true; setChecking(false); }
-        }, 4000);
-
+        const timeout = setTimeout(() => { if (!resolved) { resolved = true; setChecking(false); } }, 4000);
         const unsub = onAuthStateChanged(auth, async u => {
             if (!resolved) { resolved = true; clearTimeout(timeout); }
             setUser(u);
             if (u) {
                 try {
-                    const userRef = doc(db, 'users', u.uid);
-                    const userSnap = await getDoc(userRef);
-                    if (userSnap.exists() && userSnap.data().plan) {
-                        setUserPlan(userSnap.data().plan);
-                    } else {
-                        const initialPlan = { id: 'free', name: 'Free' };
-                        await setDoc(userRef, { plan: initialPlan }, { merge: true });
-                        setUserPlan(initialPlan);
-                    }
-                } catch (err) {
-                    console.error('Error fetching user plan:', err);
-                }
+                    const snap = await getDoc(doc(db, 'users', u.uid));
+                    if (snap.exists() && snap.data().plan) setUserPlan(snap.data().plan);
+                    else await setDoc(doc(db, 'users', u.uid), { plan: { id: 'free', name: 'Free' } }, { merge: true });
+                } catch (err) { console.error('Plan Error:', err); }
             }
             setChecking(false);
-        }, (err) => {
-            console.error('Firebase auth error:', err);
-            if (!resolved) { resolved = true; clearTimeout(timeout); }
-            setChecking(false);
         });
-
         return () => { unsub(); clearTimeout(timeout); };
     }, []);
 
-    // Global Search Keybind and TTS Preload
     useEffect(() => {
-        const handleSearchBind = (e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-                e.preventDefault();
-                setShowSearch(true);
-            }
-        };
-        window.addEventListener('keydown', handleSearchBind);
-        const loadVoices = () => { window.speechSynthesis.getVoices(); };
-        if (window.speechSynthesis.onvoiceschanged !== undefined) {
-            window.speechSynthesis.onvoiceschanged = loadVoices;
-        }
-        loadVoices();
-        return () => {
-            window.removeEventListener('keydown', handleSearchBind);
-            if (window.speechSynthesis.onvoiceschanged !== undefined) {
-                window.speechSynthesis.onvoiceschanged = null;
-            }
-        };
+        const h = (e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setShowSearch(true); } };
+        window.addEventListener('keydown', h);
+        const l = () => { window.speechSynthesis.getVoices(); };
+        if (window.speechSynthesis.onvoiceschanged !== undefined) window.speechSynthesis.onvoiceschanged = l;
+        l();
+        return () => { window.removeEventListener('keydown', h); if (window.speechSynthesis.onvoiceschanged !== undefined) window.speechSynthesis.onvoiceschanged = null; };
     }, []);
 
-    // Close dropdowns on click outside
     useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (activeDropdown && !e.target.closest('.dropdown-container')) {
-                setActiveDropdown(null);
-            }
-        };
-        window.addEventListener('mousedown', handleClickOutside);
-        return () => window.removeEventListener('mousedown', handleClickOutside);
+        const h = (e) => { if (activeDropdown && !e.target.closest('.dropdown-container')) setActiveDropdown(null); };
+        window.addEventListener('mousedown', h);
+        return () => window.removeEventListener('mousedown', h);
     }, [activeDropdown]);
 
-    // Template fetching
+    useEffect(() => { if (user) fetchUserTemplates(); }, [user?.uid]);
+    useEffect(() => { if (user) { setMessages([]); fetchHistory(); } }, [user?.uid]);
+
     useEffect(() => {
         if (!user) return;
-        fetchUserTemplates();
-    }, [user?.uid]);
-
-    const fetchUserTemplates = async () => {
-        if (!user) return;
-        try {
-            const q = query(collection(db, 'templates'), where('userId', '==', user.uid));
-            const querySnapshot = await getDocs(q);
-            const userTemplates = querySnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                author: 'Me'
-            }));
-            setTemplates([...INITIAL_TEMPLATES, ...userTemplates]);
-        } catch (error) {
-            console.error("Error fetching templates:", error);
-        }
-    };
-
-    // Always start at Home when user first logs in
-    useEffect(() => {
-        if (!user) return;
-        setMessages([]);
-        fetchHistory();
-    }, [user?.uid]);
-
-    // Show mentor greeting
-    useEffect(() => {
-        if (!user) return;
-        const name = user.displayName || user.email?.split('@')[0] || 'User';
-        if (!isFirstLoad.current) {
-            setMessages([{ role: 'assistant', content: mentor.greeting(name) }]);
-        }
+        if (!isFirstLoad.current) setMessages([{ role: 'assistant', content: mentor.greeting(user.displayName || 'User') }]);
         isFirstLoad.current = false;
     }, [mentor.id]);
 
-    // Layout adjustment
     useEffect(() => {
         if (inputAreaRef.current) {
             inputAreaRef.current.style.height = 'auto';
@@ -651,9 +574,7 @@ export default function App() {
         }
     }, [input]);
 
-    useEffect(() => {
-        endRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+    useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
     const fetchHistory = async () => {
         if (!user) return;
