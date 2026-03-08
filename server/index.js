@@ -140,6 +140,12 @@ if (!serviceAccount) {
 if (!serviceAccount) {
     console.warn('⚠️ Firebase service account missing. Firebase features will be limited.');
 } else {
+    // RESILIENCE FIX: Force specify project_id to align with frontend if environment is stale
+    if (serviceAccount.project_id === 'nexovgen-ai') {
+        console.warn('🚨 Stale Project ID detected ("nexovgen-ai"). Overriding to "nexovgen-gpt-1b4f2" for alignment.');
+        serviceAccount.project_id = 'nexovgen-gpt-1b4f2';
+    }
+
     try {
         console.log('🔧 Initializing Firebase Admin with Project ID:', serviceAccount.project_id);
         if (admin.apps.length === 0) {
