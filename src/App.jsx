@@ -1861,30 +1861,68 @@ export default function App() {
                 <AnimatePresence>
                     {showMentorPicker && (
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                            style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(16px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+                            style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(16px)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? '0' : '20px' }}
                             onClick={() => setShowMentorPicker(false)}>
-                            <motion.div initial={{ scale: 0.94, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.94, opacity: 0 }}
+                            <motion.div initial={isMobile ? { y: '100%' } : { scale: 0.94, opacity: 0 }} animate={isMobile ? { y: 0 } : { scale: 1, opacity: 1 }} exit={isMobile ? { y: '100%' } : { scale: 0.94, opacity: 0 }}
+                                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
                                 onClick={e => e.stopPropagation()}
-                                style={{ width: '100%', maxWidth: '860px', background: '#111318', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '20px', padding: '28px', position: 'relative', overflow: 'hidden' }}>
+                                style={{
+                                    width: '100%',
+                                    maxWidth: isMobile ? 'none' : '860px',
+                                    background: '#111318',
+                                    border: isMobile ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                                    borderTop: isMobile ? '1px solid rgba(255,255,255,0.1)' : 'none',
+                                    borderRadius: isMobile ? '24px 24px 0 0' : '20px',
+                                    padding: isMobile ? '24px 0 40px' : '28px',
+                                    position: 'relative',
+                                    overflow: 'hidden'
+                                }}>
                                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '2px', background: 'linear-gradient(90deg,#06b6d4,#8b5cf6,#ec4899)' }} />
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-                                    <div>
-                                        <h2 style={{ fontSize: '20px', fontWeight: 800, margin: '0 0 4px' }}>Choose Your Mentor</h2>
-                                        <p style={{ fontSize: '11px', color: '#6b7280', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', margin: 0 }}>NEXOVGEN 5-Mentor AI University</p>
+                                <div style={{ padding: isMobile ? '0 24px' : '0', width: '100%' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                                        <div>
+                                            <h2 style={{ fontSize: isMobile ? '18px' : '20px', fontWeight: 800, margin: '0 0 4px' }}>Choose Your Mentor</h2>
+                                            <p style={{ fontSize: '10px', color: '#6b7280', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', margin: 0 }}>NEXOVGEN AI University</p>
+                                        </div>
+                                        {!isMobile && (
+                                            <button onClick={() => setShowMentorPicker(false)}
+                                                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '9px', cursor: 'pointer', padding: '6px', color: '#9ca3af' }}>
+                                                <X style={{ width: '16px', height: '16px' }} />
+                                            </button>
+                                        )}
                                     </div>
-                                    <button onClick={() => setShowMentorPicker(false)}
-                                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '9px', cursor: 'pointer', padding: '6px', color: '#9ca3af' }}>
-                                        <X style={{ width: '16px', height: '16px' }} />
-                                    </button>
                                 </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
+                                {isMobile && <div style={{ width: '40px', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', margin: '-12px auto 20px' }} />}
+                                <div style={{
+                                    display: isMobile ? 'flex' : 'grid',
+                                    gridTemplateColumns: isMobile ? 'none' : 'repeat(auto-fit, minmax(140px, 1fr))',
+                                    gap: '12px',
+                                    overflowX: isMobile ? 'auto' : 'visible',
+                                    padding: isMobile ? '0 24px' : '0',
+                                    scrollSnapType: isMobile ? 'x mandatory' : 'none',
+                                    WebkitOverflowScrolling: 'touch',
+                                    scrollbarWidth: 'none'
+                                }}>
+                                    <style>{`
+                                        div::-webkit-scrollbar { display: none; }
+                                    `}</style>
                                     {MENTORS.map(m => {
                                         const MIcon = m.icon;
                                         const active = mentor.id === m.id;
                                         return (
-                                            <motion.button key={m.id} whileHover={{ y: -4 }}
+                                            <motion.button key={m.id} whileHover={isMobile ? {} : { y: -4 }}
                                                 onClick={() => { setMentor(m); setShowMentorPicker(false); }}
-                                                style={{ padding: '18px 14px', borderRadius: '14px', border: `1px solid ${active ? m.color + '50' : 'rgba(255,255,255,0.07)'}`, background: active ? `${m.color}12` : 'rgba(255,255,255,0.03)', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s' }}>
+                                                style={{
+                                                    flex: isMobile ? '0 0 240px' : 'auto',
+                                                    padding: '18px 14px',
+                                                    borderRadius: '14px',
+                                                    border: `1px solid ${active ? m.color + '50' : 'rgba(255,255,255,0.07)'}`,
+                                                    background: active ? `${m.color}12` : 'rgba(255,255,255,0.03)',
+                                                    cursor: 'pointer',
+                                                    textAlign: 'left',
+                                                    transition: 'all 0.2s',
+                                                    scrollSnapAlign: isMobile ? 'center' : 'none'
+                                                }}>
                                                 <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: `${m.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
                                                     <MIcon style={{ width: '18px', height: '18px', color: m.color }} />
                                                 </div>

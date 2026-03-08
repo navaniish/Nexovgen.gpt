@@ -152,17 +152,18 @@ function LeadCard({ lead }) {
     );
 }
 
-function StatCard({ label, value, sub, color = '#06b6d4', Icon }) {
+function StatCard({ label, value, sub, color = '#06b6d4', Icon, isMobile }) {
     return (
         <div style={{
             background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
-            borderRadius: 14, padding: '18px 20px', flex: '1 1 140px',
+            borderRadius: 14, padding: '18px 20px', flex: isMobile ? '0 0 160px' : '1 1 140px',
+            scrollSnapAlign: isMobile ? 'center' : 'none'
         }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                 <span style={{ fontSize: 10, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }}>{label}</span>
                 {Icon && <Icon style={{ width: 14, height: 14, color }} />}
             </div>
-            <p style={{ fontSize: 32, fontWeight: 900, color, margin: '0 0 2px', lineHeight: 1 }}>{value}</p>
+            <p style={{ fontSize: isMobile ? 28 : 32, fontWeight: 900, color, margin: '0 0 2px', lineHeight: 1 }}>{value}</p>
             {sub && <p style={{ fontSize: 10, color: '#6b7280', margin: 0 }}>{sub}</p>}
         </div>
     );
@@ -225,9 +226,9 @@ function ScoreLeadTab({ user }) {
     const labelStyle = { fontSize: 10, fontWeight: 700, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: 5 };
 
     return (
-        <div style={{ display: 'flex', gap: 20, height: '100%', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 20, height: '100%', overflow: 'hidden' }}>
             {/* Left: Form */}
-            <div style={{ flex: '0 0 340px', overflowY: 'auto', paddingRight: 4 }}>
+            <div style={{ flex: isMobile ? 'none' : '0 0 340px', overflowY: isMobile ? 'visible' : 'auto', paddingRight: isMobile ? 0 : 4, maxHeight: isMobile ? 'none' : '100%' }}>
                 <p style={{ fontSize: 11, color: '#4b5563', marginBottom: 16 }}>Fill in lead details to get an AI qualification score, persona classification, and personalized email.</p>
 
                 <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
@@ -458,7 +459,14 @@ function PipelineTab({ user }) {
                     <p style={{ fontSize: 13, margin: 0 }}>No leads yet — score a lead to populate the pipeline</p>
                 </div>
             ) : (
-                <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+                <div style={{
+                    flex: 1,
+                    overflowY: isMobile ? 'visible' : 'auto',
+                    display: isMobile ? 'flex' : 'grid',
+                    flexDirection: isMobile ? 'column' : 'row',
+                    gridTemplateColumns: isMobile ? 'none' : 'repeat(3, 1fr)',
+                    gap: 14
+                }}>
                     {['HOT', 'WARM', 'COLD'].map(tier => {
                         const cfg = TIER_CONFIG[tier];
                         const tierLeads = byTier(tier);
@@ -521,11 +529,19 @@ function ReportsTab({ user }) {
     return (
         <div style={{ overflowY: 'auto', height: '100%' }}>
             {/* KPI Row */}
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18 }}>
-                <StatCard label="Total Leads" value={report.total} sub="in pipeline" color="#4F8EF7" Icon={Users} />
-                <StatCard label="Avg Score" value={report.avgScore} sub="out of 100" color="#f59e0b" Icon={TrendingUp} />
-                <StatCard label="AI Confidence" value={`${Math.round(report.avgConfidence * 100)}%`} sub="average accuracy" color="#10b981" Icon={Brain} />
-                <StatCard label="Review Queue" value={report.reviewPending} sub="needs human review" color="#ef4444" Icon={AlertTriangle} />
+            <div style={{
+                display: 'flex',
+                gap: 10,
+                overflowX: isMobile ? 'auto' : 'visible',
+                paddingBottom: isMobile ? 12 : 0,
+                marginBottom: 18,
+                scrollSnapType: isMobile ? 'x mandatory' : 'none',
+                scrollbarWidth: 'none'
+            }}>
+                <StatCard label="Total Leads" value={report.total} sub="in pipeline" color="#4F8EF7" Icon={Users} isMobile={isMobile} />
+                <StatCard label="Avg Score" value={report.avgScore} sub="out of 100" color="#f59e0b" Icon={TrendingUp} isMobile={isMobile} />
+                <StatCard label="AI Confidence" value={`${Math.round(report.avgConfidence * 100)}%`} sub="average accuracy" color="#10b981" Icon={Brain} isMobile={isMobile} />
+                <StatCard label="Review Queue" value={report.reviewPending} sub="needs human review" color="#ef4444" Icon={AlertTriangle} isMobile={isMobile} />
             </div>
 
             {/* Tier Distribution */}
@@ -689,6 +705,13 @@ function ReviewQueueTab({ user }) {
 // ─── Main AutomationHub Component ─────────────────────────────────────────────
 export default function AutomationHub({ onClose, user }) {
     const [activeTab, setActiveTab] = useState('blueprints');
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 800);
+
+    useEffect(() => {
+        const h = () => setIsMobile(window.innerWidth < 800);
+        window.addEventListener('resize', h);
+        return () => window.removeEventListener('resize', h);
+    }, []);
 
     return (
         <motion.div
@@ -724,19 +747,33 @@ export default function AutomationHub({ onClose, user }) {
                 </div>
 
                 {/* Tabs */}
-                <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: 4 }}>
+                <div style={{
+                    display: 'flex',
+                    gap: 4,
+                    background: 'rgba(255,255,255,0.03)',
+                    borderRadius: 10,
+                    padding: 4,
+                    overflowX: isMobile ? 'auto' : 'visible',
+                    maxWidth: isMobile ? 'calc(100vw - 120px)' : 'none',
+                    scrollbarWidth: 'none',
+                    msOverflowStyle: 'none'
+                }}>
+                    <style>{`
+                        div::-webkit-scrollbar { display: none; }
+                    `}</style>
                     {TABS.map(({ id, label, Icon }) => (
                         <button
                             key={id}
                             onClick={() => setActiveTab(id)}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 6,
-                                padding: '7px 14px', borderRadius: 8, border: 'none',
+                                padding: isMobile ? '7px 16px' : '7px 14px', borderRadius: 8, border: 'none',
                                 background: activeTab === id ? 'rgba(79,142,247,0.15)' : 'none',
                                 color: activeTab === id ? '#4F8EF7' : '#4b5563',
                                 fontSize: 12, fontWeight: 600, cursor: 'pointer',
                                 transition: 'all 0.15s',
                                 borderBottom: activeTab === id ? '2px solid #4F8EF7' : '2px solid transparent',
+                                whiteSpace: 'nowrap', flexShrink: 0
                             }}
                         >
                             <Icon style={{ width: 13, height: 13 }} />
