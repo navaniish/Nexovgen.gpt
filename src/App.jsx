@@ -467,7 +467,17 @@ export default function App() {
     const [messages, setMessages] = useState([]);
     const [history, setHistory] = useState([]);
     const [input, setInput] = useState('');
-    const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 1024);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 1024);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    const sidebarOpen = isSidebarOpen;
+    const setSidebarOpen = setIsSidebarOpen;
     const [loading, setLoading] = useState(false);
     const [showMentorPicker, setShowMentorPicker] = useState(false);
     const [showPricing, setShowPricing] = useState(false);
@@ -1072,10 +1082,11 @@ export default function App() {
                             <motion.aside initial={{ x: -280 }} animate={{ x: 0 }} exit={{ x: -280 }}
                                 transition={{ type: 'spring', damping: 26, stiffness: 200 }}
                                 style={{
-                                    width: '220px', minWidth: '220px', height: '100%', display: 'flex', flexDirection: 'column',
+                                    width: isMobile ? '80%' : '220px', minWidth: isMobile ? 'unset' : '220px',
+                                    maxWidth: '280px', height: '100%', display: 'flex', flexDirection: 'column',
                                     background: 'rgba(8,12,22,0.78)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
                                     borderRight: '1px solid rgba(255,255,255,0.07)',
-                                    position: window.innerWidth <= 1024 ? 'fixed' : 'relative', zIndex: 50,
+                                    position: isMobile ? 'fixed' : 'relative', zIndex: 50,
                                 }}>
 
                                 {/* Logo & Home Link */}
@@ -1105,17 +1116,16 @@ export default function App() {
                                 {/* Primary Nav */}
                                 <div style={{ padding: '0 10px' }}>
                                     {[
-                                        { icon: Home, label: 'Home', action: () => setMessages([]) },
-                                        { icon: Sparkles, label: 'Mentors', action: () => setShowMentorPicker(true) },
-                                        { icon: Mic, label: 'Face to Face', action: () => setShowFaceMode(true) },
-                                        { icon: Zap, label: 'Automation Hub', action: () => { setShowAutomationHub(true); setSidebarOpen(false); } },
-                                        { icon: FlaskConical, label: 'AI Research Lab', action: () => { setShowAILab(true); setSidebarOpen(false); } },
-                                        { icon: LayoutGrid, label: 'All Chats', action: () => { setShowAllChats(true); setSidebarOpen(false); } },
-                                        { icon: Search, label: 'Search', action: () => setShowSearch(true) },
-                                        { icon: LayoutTemplate, label: 'Templates', action: () => { setShowTemplates(true); setSidebarOpen(false); } },
-
-                                        { icon: CreditCard, label: 'Pricing', action: () => { setShowPricing(true); setSidebarOpen(false); } },
-                                        { icon: Settings, label: 'Appearance', action: () => { setShowSettings(true); setSidebarOpen(false); } },
+                                        { icon: Home, label: 'Home', action: () => { setMessages([]); if (isMobile) setIsSidebarOpen(false); } },
+                                        { icon: Sparkles, label: 'Mentors', action: () => { setShowMentorPicker(true); if (isMobile) setIsSidebarOpen(false); } },
+                                        { icon: Mic, label: 'Face to Face', action: () => { setShowFaceMode(true); if (isMobile) setIsSidebarOpen(false); } },
+                                        { icon: Zap, label: 'Automation Hub', action: () => { setShowAutomationHub(true); if (isMobile) setIsSidebarOpen(false); } },
+                                        { icon: FlaskConical, label: 'AI Research Lab', action: () => { setShowAILab(true); if (isMobile) setIsSidebarOpen(false); } },
+                                        { icon: LayoutGrid, label: 'All Chats', action: () => { setShowAllChats(true); if (isMobile) setIsSidebarOpen(false); } },
+                                        { icon: Search, label: 'Search', action: () => { setShowSearch(true); if (isMobile) setIsSidebarOpen(false); } },
+                                        { icon: LayoutTemplate, label: 'Templates', action: () => { setShowTemplates(true); if (isMobile) setIsSidebarOpen(false); } },
+                                        { icon: CreditCard, label: 'Pricing', action: () => { setShowPricing(true); if (isMobile) setIsSidebarOpen(false); } },
+                                        { icon: Settings, label: 'Appearance', action: () => { setShowSettings(true); if (isMobile) setIsSidebarOpen(false); } },
                                     ].map(({ icon: NavIcon, label, action }) => (
                                         <button key={label} onClick={action}
                                             style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '9px', padding: '8px 10px', borderRadius: '8px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', marginBottom: '1px', transition: 'background 0.15s' }}

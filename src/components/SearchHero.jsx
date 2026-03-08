@@ -392,7 +392,7 @@ function HoloPanelLeft() {
             transition={{ opacity: { delay: 1.4, duration: 0.7 }, y: { duration: 6, repeat: Infinity, ease: 'easeInOut' } }}
             style={{
                 position: 'absolute', left: '3%', top: '18%',
-                width: 148, display: 'flex', flexDirection: 'column', gap: 8,
+                width: 148, display: window.innerWidth < 1024 ? 'none' : 'flex', flexDirection: 'column', gap: 8,
                 pointerEvents: 'none',
             }}
         >
@@ -432,7 +432,7 @@ function HoloPanelRight() {
             transition={{ opacity: { delay: 1.5, duration: 0.7 }, y: { duration: 7, repeat: Infinity, ease: 'easeInOut', delay: 1 } }}
             style={{
                 position: 'absolute', right: '3%', top: '22%',
-                width: 148, display: 'flex', flexDirection: 'column', gap: 8,
+                width: 148, display: window.innerWidth < 1024 ? 'none' : 'flex', flexDirection: 'column', gap: 8,
                 pointerEvents: 'none',
             }}
         >
@@ -786,8 +786,8 @@ export default function SearchHero({ onSearch, lang, setIsListening }) {
                 {/* ── FEATURE ICONS ── */}
                 <div style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(4,1fr)',
-                    gap: 14, width: '100%',
+                    gridTemplateColumns: window.innerWidth < 640 ? 'repeat(2,1fr)' : 'repeat(4,1fr)',
+                    gap: window.innerWidth < 640 ? 10 : 14, width: '100%',
                 }}>
                     {FEATURES.map((f, i) => (
                         <FeatureCard key={f.label} {...f} delay={1.05 + i * 0.1} />
