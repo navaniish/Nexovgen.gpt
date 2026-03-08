@@ -585,6 +585,23 @@ export default function App() {
         } catch { /* silent */ }
     };
 
+    const fetchUserTemplates = async () => {
+        if (!user) return;
+        try {
+            const q = query(collection(db, 'templates'), where('userId', '==', user.uid));
+            const querySnapshot = await getDocs(q);
+            const userTemplates = querySnapshot.docs.map(d => ({
+                id: d.id,
+                ...d.data(),
+                author: 'Me'
+            }));
+            setTemplates([...INITIAL_TEMPLATES, ...userTemplates]);
+        } catch (error) {
+            console.error("Error fetching templates:", error);
+        }
+    };
+
+
     // Voice Input Logic
     const toggleVoice = () => {
         if (isListening) {
