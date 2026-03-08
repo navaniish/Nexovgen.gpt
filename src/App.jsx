@@ -458,6 +458,242 @@ function AllChatsPanel({ history, groupedHistory, onSelect, onDelete, onClose })
 }
 
 
+// ─── Mobile Bottom Navigation ─────────────────────────────────────────────────
+function MobileBottomNav({
+    accentColor,
+    onHome, onMentors, onFaceToFace, onAutomationHub, onAILab,
+    onAllChats, onSearch, onTemplates, onPricing, onAppearance,
+    activeTab,
+}) {
+    const [showMore, setShowMore] = React.useState(false);
+
+    const primaryTabs = [
+        { id: 'home', icon: Home, label: 'Home', action: () => { onHome(); setShowMore(false); } },
+        { id: 'mentors', icon: Sparkles, label: 'Mentors', action: () => { onMentors(); setShowMore(false); } },
+        { id: 'face', icon: Mic, label: 'Face', action: () => { onFaceToFace(); setShowMore(false); } },
+        { id: 'automation', icon: Zap, label: 'Automation', action: () => { onAutomationHub(); setShowMore(false); } },
+        { id: 'ailab', icon: FlaskConical, label: 'AI Lab', action: () => { onAILab(); setShowMore(false); } },
+    ];
+
+    const moreTabs = [
+        { id: 'allchats', icon: LayoutGrid, label: 'All Chats', action: () => { onAllChats(); setShowMore(false); } },
+        { id: 'search', icon: Search, label: 'Search', action: () => { onSearch(); setShowMore(false); } },
+        { id: 'templates', icon: LayoutTemplate, label: 'Templates', action: () => { onTemplates(); setShowMore(false); } },
+        { id: 'pricing', icon: CreditCard, label: 'Pricing', action: () => { onPricing(); setShowMore(false); } },
+        { id: 'appearance', icon: Settings, label: 'Appearance', action: () => { onAppearance(); setShowMore(false); } },
+    ];
+
+    return (
+        <>
+            {/* Backdrop for More drawer */}
+            <AnimatePresence>
+                {showMore && (
+                    <motion.div
+                        key="mob-backdrop"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setShowMore(false)}
+                        style={{
+                            position: 'fixed', inset: 0, zIndex: 148,
+                            background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)',
+                        }}
+                    />
+                )}
+            </AnimatePresence>
+
+            {/* More — slide-up drawer */}
+            <AnimatePresence>
+                {showMore && (
+                    <motion.div
+                        key="mob-more-drawer"
+                        initial={{ y: '100%', opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: '100%', opacity: 0 }}
+                        transition={{ type: 'spring', damping: 28, stiffness: 260 }}
+                        style={{
+                            position: 'fixed', bottom: 64, left: 0, right: 0, zIndex: 149,
+                            background: 'rgba(10,13,22,0.96)',
+                            backdropFilter: 'blur(28px)',
+                            borderTop: `1px solid ${accentColor}25`,
+                            borderRadius: '28px 28px 0 0',
+                            padding: '8px 16px 16px',
+                            boxShadow: `0 -12px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04) inset`,
+                        }}
+                    >
+                        {/* drag handle */}
+                        <div style={{
+                            width: 40, height: 4, borderRadius: 99,
+                            background: 'rgba(255,255,255,0.12)',
+                            margin: '6px auto 18px',
+                        }} />
+                        <p style={{
+                            fontSize: 10, fontWeight: 800, color: '#374151',
+                            textTransform: 'uppercase', letterSpacing: '0.18em',
+                            margin: '0 0 14px 4px',
+                        }}>More</p>
+                        <div style={{
+                            display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 8,
+                        }}>
+                            {moreTabs.map(({ id, icon: TabIcon, label, action }) => {
+                                const isActive = activeTab === id;
+                                return (
+                                    <motion.button
+                                        key={id}
+                                        whileTap={{ scale: 0.88 }}
+                                        onClick={action}
+                                        style={{
+                                            display: 'flex', flexDirection: 'column', alignItems: 'center',
+                                            gap: 6, padding: '12px 6px 10px', borderRadius: 18,
+                                            border: isActive ? `1px solid ${accentColor}40` : '1px solid rgba(255,255,255,0.06)',
+                                            background: isActive ? `${accentColor}18` : 'rgba(255,255,255,0.04)',
+                                            cursor: 'pointer', transition: 'all 0.2s',
+                                        }}
+                                    >
+                                        <div style={{
+                                            width: 38, height: 38, borderRadius: 12,
+                                            background: isActive ? `${accentColor}22` : 'rgba(255,255,255,0.06)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            boxShadow: isActive ? `0 0 12px ${accentColor}55` : 'none',
+                                        }}>
+                                            <TabIcon style={{
+                                                width: 17, height: 17,
+                                                color: isActive ? accentColor : '#6b7280',
+                                            }} />
+                                        </div>
+                                        <span style={{
+                                            fontSize: 10, fontWeight: 600,
+                                            color: isActive ? accentColor : '#6b7280',
+                                            whiteSpace: 'nowrap',
+                                        }}>{label}</span>
+                                    </motion.button>
+                                );
+                            })}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Bottom bar */}
+            <motion.nav
+                initial={{ y: 80 }}
+                animate={{ y: 0 }}
+                transition={{ type: 'spring', damping: 24, stiffness: 220, delay: 0.1 }}
+                style={{
+                    position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 150,
+                    height: 64,
+                    background: 'rgba(8,11,20,0.92)',
+                    backdropFilter: 'blur(28px)',
+                    borderTop: '1px solid rgba(255,255,255,0.07)',
+                    display: 'flex', alignItems: 'center',
+                    padding: '0 8px',
+                    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+                    boxShadow: '0 -8px 40px rgba(0,0,0,0.55)',
+                }}
+            >
+                {primaryTabs.map(({ id, icon: TabIcon, label, action }) => {
+                    const isActive = activeTab === id;
+                    return (
+                        <motion.button
+                            key={id}
+                            whileTap={{ scale: 0.82 }}
+                            onClick={action}
+                            style={{
+                                flex: 1, display: 'flex', flexDirection: 'column',
+                                alignItems: 'center', justifyContent: 'center', gap: 4,
+                                padding: '6px 0', background: 'none', border: 'none',
+                                cursor: 'pointer', position: 'relative',
+                            }}
+                        >
+                            {isActive && (
+                                <motion.div
+                                    layoutId="mob-active-indicator"
+                                    style={{
+                                        position: 'absolute', top: 0, left: '50%',
+                                        transform: 'translateX(-50%)',
+                                        width: 24, height: 2, borderRadius: 99,
+                                        background: accentColor,
+                                        boxShadow: `0 0 8px ${accentColor}`,
+                                    }}
+                                />
+                            )}
+                            <div style={{
+                                width: 34, height: 34, borderRadius: 11,
+                                background: isActive ? `${accentColor}20` : 'transparent',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                transition: 'all 0.22s',
+                                boxShadow: isActive ? `0 0 14px ${accentColor}45` : 'none',
+                            }}>
+                                <TabIcon style={{
+                                    width: 18, height: 18,
+                                    color: isActive ? accentColor : '#6b7280',
+                                    transition: 'color 0.22s',
+                                }} />
+                            </div>
+                            <span style={{
+                                fontSize: 9.5, fontWeight: isActive ? 700 : 500,
+                                color: isActive ? accentColor : '#6b7280',
+                                letterSpacing: '0.01em',
+                                transition: 'color 0.22s',
+                            }}>{label}</span>
+                        </motion.button>
+                    );
+                })}
+
+                {/* More button */}
+                <motion.button
+                    whileTap={{ scale: 0.82 }}
+                    onClick={() => setShowMore(prev => !prev)}
+                    style={{
+                        flex: 1, display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', justifyContent: 'center', gap: 4,
+                        padding: '6px 0', background: 'none', border: 'none',
+                        cursor: 'pointer', position: 'relative',
+                    }}
+                >
+                    {showMore && (
+                        <motion.div
+                            layoutId="mob-active-indicator"
+                            style={{
+                                position: 'absolute', top: 0, left: '50%',
+                                transform: 'translateX(-50%)',
+                                width: 24, height: 2, borderRadius: 99,
+                                background: accentColor,
+                                boxShadow: `0 0 8px ${accentColor}`,
+                            }}
+                        />
+                    )}
+                    <div style={{
+                        width: 34, height: 34, borderRadius: 11,
+                        background: showMore ? `${accentColor}20` : 'transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'all 0.22s',
+                        boxShadow: showMore ? `0 0 14px ${accentColor}45` : 'none',
+                    }}>
+                        <motion.div
+                            animate={{ rotate: showMore ? 45 : 0 }}
+                            transition={{ duration: 0.2 }}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                            <Plus style={{
+                                width: 18, height: 18,
+                                color: showMore ? accentColor : '#6b7280',
+                                transition: 'color 0.22s',
+                            }} />
+                        </motion.div>
+                    </div>
+                    <span style={{
+                        fontSize: 9.5, fontWeight: showMore ? 700 : 500,
+                        color: showMore ? accentColor : '#6b7280',
+                        letterSpacing: '0.01em',
+                        transition: 'color 0.22s',
+                    }}>More</span>
+                </motion.button>
+            </motion.nav>
+        </>
+    );
+}
+
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 export default function App() {
@@ -496,6 +732,7 @@ export default function App() {
     const [attachments, setAttachments] = useState([]);
     const [isAutoSpeakEnabled, setIsAutoSpeakEnabled] = useState(false);
     const [showLangPicker, setShowLangPicker] = useState(false);
+
     const [settings, setSettings] = useState(() => {
         try { return { wakeWordEnabled: true, ...JSON.parse(localStorage.getItem('nxv_settings') || '{}') }; }
         catch { return { wakeWordEnabled: true }; }
@@ -512,6 +749,19 @@ export default function App() {
     const accentColor = appearance.accentColor || '#4F8EF7';
     const sidebarOpen = isSidebarOpen;
     const setSidebarOpen = setIsSidebarOpen;
+
+    // Derived active tab for mobile bottom nav
+    const mobileActiveTab = showFaceMode ? 'face'
+        : showAutomationHub ? 'automation'
+            : showAILab ? 'ailab'
+                : showAllChats ? 'allchats'
+                    : showSearch ? 'search'
+                        : showTemplates ? 'templates'
+                            : showPricing ? 'pricing'
+                                : showSettings ? 'appearance'
+                                    : showMentorPicker ? 'mentors'
+                                        : messages.length === 0 ? 'home'
+                                            : null;
 
     const handleWake = useCallback(() => {
         setWakeTriggered(true);
@@ -1150,7 +1400,7 @@ export default function App() {
                 </AnimatePresence>
 
                 {/* ── MAIN ──────────────────────────────────────────────────────── */}
-                <main style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, position: 'relative', overflow: 'hidden' }}>
+                <main style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, position: 'relative', overflow: 'hidden', paddingBottom: isMobile ? '64px' : 0 }}>
 
                     {/* Top bar — isolation:isolate + translateZ(0) prevents backdrop-filter repaint flicker */}
                     <div style={{
@@ -1693,6 +1943,23 @@ export default function App() {
                         }}
                         onDelete={(e, id) => { deleteChat(e, id); }}
                         onClose={() => setShowAllChats(false)}
+                    />
+                )}
+                {/* ── MOBILE BOTTOM NAV ────────────────────────────────────── */}
+                {isMobile && user && (
+                    <MobileBottomNav
+                        accentColor={accentColor}
+                        activeTab={mobileActiveTab}
+                        onHome={() => { setMessages([]); setIsSidebarOpen(false); }}
+                        onMentors={() => { setShowMentorPicker(true); setIsSidebarOpen(false); }}
+                        onFaceToFace={() => { setShowFaceMode(true); setIsSidebarOpen(false); }}
+                        onAutomationHub={() => { setShowAutomationHub(true); setIsSidebarOpen(false); }}
+                        onAILab={() => { setShowAILab(true); setIsSidebarOpen(false); }}
+                        onAllChats={() => { setShowAllChats(true); setIsSidebarOpen(false); }}
+                        onSearch={() => { setShowSearch(true); setIsSidebarOpen(false); }}
+                        onTemplates={() => { setShowTemplates(true); setIsSidebarOpen(false); }}
+                        onPricing={() => { setShowPricing(true); setIsSidebarOpen(false); }}
+                        onAppearance={() => { setShowSettings(true); setIsSidebarOpen(false); }}
                     />
                 )}
             </div>
