@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"vite\" \"cd server && npx nodemon index.js\"",
-    "dev:all": "concurrently \"npm run dev\" \"cd server && npx nodemon index.js\"",
+    "dev": "concurrently \"vite\" \"cd server && node --watch index.js\"",
+    "dev:all": "concurrently \"npm run dev\" \"cd server && node --watch index.js\"",
     "build": "vite build",
     "build:prod": "npm install && npm run build",
     "start": "node server/index.js",

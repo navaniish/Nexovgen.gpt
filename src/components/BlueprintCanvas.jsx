@@ -256,7 +256,7 @@ function WorkflowNode({ node, onDrag, isSelected, onClick, onConnectStart, onCon
 }
 
 // --- Main BlueprintCanvas Component ---
-export default function BlueprintCanvas() {
+export default function BlueprintCanvas({ initialBlueprint }) {
     const [nodes, setNodes] = useState(INITIAL_NODES);
     const [edges, setEdges] = useState(INITIAL_EDGES);
     const [selectedNode, setSelectedNode] = useState(null);
@@ -336,6 +336,13 @@ export default function BlueprintCanvas() {
 
     const deleteEdge = (id) => {
         setEdges(eds => eds.filter(e => e.id !== id));
+    };
+
+    const importAIBlueprint = () => {
+        if (!initialBlueprint) return;
+        if (initialBlueprint.nodes) setNodes(initialBlueprint.nodes);
+        if (initialBlueprint.edges) setEdges(initialBlueprint.edges);
+        addLog('Loaded AI-generated blueprint into canvas.', 'success');
     };
 
     const runSimulation = async () => {
@@ -490,6 +497,23 @@ export default function BlueprintCanvas() {
                 >
                     <MousePointer2 style={{ width: 16, height: 16 }} />
                 </button>
+                {initialBlueprint && (
+                    <button
+                        title="Import AI Result"
+                        onClick={(e) => { e.stopPropagation(); importAIBlueprint(); }}
+                        style={{
+                            padding: '8px 12px', borderRadius: 8,
+                            background: 'rgba(79, 142, 247, 0.2)',
+                            border: '1px solid rgba(79, 142, 247, 0.3)',
+                            color: '#4F8EF7', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', gap: 6,
+                            fontSize: 10, fontWeight: 900, textTransform: 'uppercase'
+                        }}
+                    >
+                        <Zap style={{ width: 12, height: 12 }} />
+                        Magic Load
+                    </button>
+                )}
             </div>
 
             {/* Execution Logs Drawer */}
